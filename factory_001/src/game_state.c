@@ -73,7 +73,7 @@ building_t *spawn_belt(game_state_t *gs, coord_t pos) {
     size_t belt_id = gs->belt_count++;
 
     building_t *building = gs->buildings + building_id;
-    belt_t *belt = gs->belts + belt_id;
+    //belt_t *belt = gs->belts + belt_id;
 
     building->pos = pos;
     building->dir = 0;
