@@ -1,0 +1,6 @@
+clang
+-I/home/marcel/workspace/repos/github/raylib/src/
+-std=c99
+-Wall
+-Wshadow
+

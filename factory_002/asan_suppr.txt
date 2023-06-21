@@ -1,0 +1,3 @@
+# supress certain errors:
+leak:_glfwInitEGL
+leak:makeContextCurrentEGL
