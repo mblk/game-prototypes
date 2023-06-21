@@ -30,7 +30,7 @@ size_t spawn_miner(game_state_t *gs, coord_t pos) {
     //miner_t *miner = gs->miners + miner_id;
 
     building->pos = pos;
-    building->size = (building_size_t){ 2, 2 };
+    building->size = (building_size_t){ 2, 1 };
     building->type = BUILDING_TYPE_MINER;
     building->data_index = miner_id;
 
@@ -45,7 +45,7 @@ size_t spawn_factory(game_state_t *gs, coord_t pos) {
     //factory_t *factory = gs->factories + factory_id;
 
     building->pos = pos;
-    building->size = (building_size_t){ 3, 3 };
+    building->size = (building_size_t){ 2, 2 };
     building->type = BUILDING_TYPE_FACTORY;
     building->data_index = factory_id;
 
@@ -67,6 +67,22 @@ size_t spawn_belt(game_state_t *gs, coord_t pos) {
     return building_id;
 }
 
+static uint8_t get_direction(coord_t from, coord_t to) {
+
+    int dx = to.x - from.x;
+    int dy = to.y - from.y;
+
+    if (dx == 0 && dy != 0) {
+        return dy > 0 ? DIR_DOWN : DIR_UP;
+    }
+
+    if (dy == 0 && dx != 0) {
+        return dx > 0 ? DIR_RIGHT : DIR_LEFT;
+    }
+
+    return DIR_NONE;
+}
+
 void connect_buildings(game_state_t *gs, size_t source_id, size_t target_id) {
     assert(gs);
     assert(source_id > 0);
@@ -81,13 +97,23 @@ void connect_buildings(game_state_t *gs, size_t source_id, size_t target_id) {
     const item_output_t output = {
         .type = target->type,
         .index = target->data_index,
-        .building_id = target_id,
     };
 
     switch(source->type) {
-        case BUILDING_TYPE_MINER: (gs->miners + source->data_index)->output = output; break;
+        case BUILDING_TYPE_MINER:   (gs->miners +    source->data_index)->output = output; break;
         case BUILDING_TYPE_FACTORY: (gs->factories + source->data_index)->output = output; break;
-        case BUILDING_TYPE_BELT: (gs->belts + source->data_index)->output = output; break;
+        case BUILDING_TYPE_BELT:    (gs->belts +     source->data_index)->output = output; break;
+    }
+
+    uint8_t d = get_direction(source->pos, target->pos);
+
+    if (source->type == BUILDING_TYPE_BELT) {
+        belt_t *source_belt = gs->belts + source->data_index;
+        source_belt->out_dir = d;
+    }
+    if (target->type == BUILDING_TYPE_BELT) {
+        belt_t *target_belt = gs->belts + target->data_index;
+        target_belt->in_dir = d;
     }
 }
 
@@ -174,7 +200,6 @@ void update_factory(game_state_t *gs, factory_t *factory) {
                 if (has_all_items) {
                     factory->state = FACTORY_STATE_PRODUCE;
                     factory->work = 0;
-                    memset(factory->items, 0, sizeof(uint8_t) * 4);
                 }
             }
             break;
@@ -183,6 +208,7 @@ void update_factory(game_state_t *gs, factory_t *factory) {
             factory->work++;
             if (factory->work >= FACTORY_WORK_PER_ITEM) {
                 factory->state = FACTORY_STATE_UNLOAD;
+                memset(factory->items, 0, sizeof(uint8_t) * 4);
             }
             break;
 

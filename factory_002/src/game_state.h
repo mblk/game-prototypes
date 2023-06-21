@@ -7,6 +7,14 @@
 
 #define ARRAY_LENGTH(array) (sizeof((array))/sizeof((array)[0]))
 
+#define DIR_NONE     (0)
+#define DIR_UP       (1)
+#define DIR_DOWN     (2)
+#define DIR_LEFT     (4)
+#define DIR_RIGHT    (5)
+
+
+
 #define MAX_ENTITY_COUNT          (1000)
 
 #define BUILDING_TYPE_MINER       (0)
@@ -48,7 +56,7 @@ typedef struct {
 typedef struct {
     uint8_t type;
     uint32_t index;
-    uint32_t building_id;
+    //uint32_t building_id;
 } item_output_t;
 
 typedef struct {
@@ -70,6 +78,10 @@ typedef struct {
     uint8_t items[BELT_ITEM_COUNT];
     uint8_t works[BELT_ITEM_COUNT];
     item_output_t output;
+
+    uint8_t in_dir;
+    uint8_t out_dir;
+
 } belt_t;
 
 typedef struct {

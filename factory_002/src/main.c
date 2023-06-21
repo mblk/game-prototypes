@@ -9,7 +9,7 @@
 #include "renderer.h"
 
 int main(void) {
-    InitWindow(1200, 800, "bubu");
+    InitWindow(1600, 1200, "bubu");
     SetWindowState(FLAG_WINDOW_MAXIMIZED);
     SetTargetFPS(60);
 
@@ -21,6 +21,9 @@ int main(void) {
 
     game_state_t game_state = {};
     reset_game_state(&game_state);
+
+    render_state_t render_state = {};
+
     int build_mode = 0;
     size_t selected_building = 0;
 
@@ -28,37 +31,60 @@ int main(void) {
     bool game_update_once = false;
 
     // -----------------
-    size_t miner1 = spawn_miner(&game_state, (coord_t) { 1, 1 });
-    size_t belt1 = spawn_belt(&game_state, (coord_t) { 3, 1 });
-    size_t belt2 = spawn_belt(&game_state, (coord_t) { 4, 1 });
-    size_t factory1 = spawn_factory(&game_state, (coord_t) { 5, 1 });
-    size_t belt3 = spawn_belt(&game_state, (coord_t) { 8, 1 });
+    {
+        size_t miner1a = spawn_miner(&game_state, (coord_t) { 1, 1 });
+        size_t belt1a = spawn_belt(&game_state, (coord_t) { 3, 1 });
+        size_t belt2a = spawn_belt(&game_state, (coord_t) { 4, 1 });
+        size_t factory1a = spawn_factory(&game_state, (coord_t) { 5, 1 });
+        size_t belt3a = spawn_belt(&game_state, (coord_t) { 7, 1 });
 
-    connect_buildings(&game_state, miner1, belt1);
-    connect_buildings(&game_state, belt1, belt2);
-    connect_buildings(&game_state, belt2, factory1);
-    connect_buildings(&game_state, factory1, belt3);
+        connect_buildings(&game_state, miner1a, belt1a);
+        connect_buildings(&game_state, belt1a, belt2a);
+        connect_buildings(&game_state, belt2a, factory1a);
+        connect_buildings(&game_state, factory1a, belt3a);
 
-    size_t belt3b = spawn_belt(&game_state, (coord_t) { 8, 5 });
-    size_t factory1b = spawn_factory(&game_state, (coord_t) { 5, 5 });
-    size_t belt2b = spawn_belt(&game_state, (coord_t) { 4, 5 });
-    size_t belt1b = spawn_belt(&game_state, (coord_t) { 3, 5 });
-    size_t miner1b = spawn_miner(&game_state, (coord_t) { 1, 5 });
+        // Note: same as above but in reverse
+        size_t belt3b = spawn_belt(&game_state, (coord_t) { 7, 4 });
+        size_t factory1b = spawn_factory(&game_state, (coord_t) { 5, 4 });
+        size_t belt2b = spawn_belt(&game_state, (coord_t) { 4, 4 });
+        size_t belt1b = spawn_belt(&game_state, (coord_t) { 3, 4 });
+        size_t miner1b = spawn_miner(&game_state, (coord_t) { 1, 4 });
 
-    connect_buildings(&game_state, miner1b, belt1b);
-    connect_buildings(&game_state, belt1b, belt2b);
-    connect_buildings(&game_state, belt2b, factory1b);
-    connect_buildings(&game_state, factory1b, belt3b);
+        size_t belt4b = spawn_belt(&game_state, (coord_t) { 8,4 });
+        size_t belt5b = spawn_belt(&game_state, (coord_t) { 8,3 });
 
-    size_t factory2 = spawn_factory(&game_state, (coord_t) { 9,1 });
-    size_t belt4 = spawn_belt(&game_state, (coord_t) { 12,2 });
+        connect_buildings(&game_state, miner1b, belt1b);
+        connect_buildings(&game_state, belt1b, belt2b);
+        connect_buildings(&game_state, belt2b, factory1b);
+        connect_buildings(&game_state, factory1b, belt3b);
+        connect_buildings(&game_state, belt3b, belt4b);
+        connect_buildings(&game_state, belt4b, belt5b);
 
-    connect_buildings(&game_state, belt3, factory2);
-    connect_buildings(&game_state, belt3b, factory2);
-    connect_buildings(&game_state, factory2, belt4);
+        size_t factory2 = spawn_factory(&game_state, (coord_t) { 8,1 });
+        size_t belt10 = spawn_belt(&game_state, (coord_t) { 10,2 });
 
+        connect_buildings(&game_state, belt3a, factory2);
+        connect_buildings(&game_state, belt5b, factory2);
+        connect_buildings(&game_state, factory2, belt10);
+    }
     // -----------------
+    {
+        size_t miner1 = spawn_miner(&game_state, (coord_t) { 1, 7 });
+        size_t belt1 = spawn_belt(&game_state, (coord_t) { 3, 7 });
+        size_t belt2 = spawn_belt(&game_state, (coord_t) { 3, 8 });
+        size_t belt3 = spawn_belt(&game_state, (coord_t) { 4, 8 });
+        size_t belt4 = spawn_belt(&game_state, (coord_t) { 4, 7 });
+        size_t belt5 = spawn_belt(&game_state, (coord_t) { 4, 6 });
+        size_t belt6 = spawn_belt(&game_state, (coord_t) { 3, 6 });
 
+        connect_buildings(&game_state, miner1, belt1);
+        connect_buildings(&game_state, belt1, belt2);
+        connect_buildings(&game_state, belt2, belt3);
+        connect_buildings(&game_state, belt3, belt4);
+        connect_buildings(&game_state, belt4, belt5);
+        connect_buildings(&game_state, belt5, belt6);
+    }
+    // -----------------
 
     while(!WindowShouldClose()) {
 
@@ -138,7 +164,7 @@ int main(void) {
                 DrawLine(WORLD_CELL_SIZE, -1000, WORLD_CELL_SIZE, 1000, BLACK);
 
                 // World
-                render_world(&game_state); 
+                render_world(&game_state, &render_state); 
 
                 // Mouse
                 {
