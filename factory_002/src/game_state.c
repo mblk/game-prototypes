@@ -12,16 +12,36 @@ int coord_equals(coord_t c1, coord_t c2) {
     return c1.x == c2.x && c1.y == c2.y;
 }
 
+bool coord_is_in_building(const building_t *b, coord_t pos) {
+    assert(b);
+    return b->pos.x <= pos.x && pos.x < b->pos.x + b->size.w &&
+           b->pos.y <= pos.y && pos.y < b->pos.y + b->size.h;
+}
+
 size_t get_building(game_state_t *gs, coord_t pos) {
     for(uint32_t i=1; i<gs->building_count; i++) {
         building_t *b = &gs->buildings[i];
-        if (coord_equals(b->pos, pos))
+        if (coord_is_in_building(b, pos))
             return i;
     }
     return 0;
 }
 
+bool space_is_free(game_state_t *gs, coord_t pos_min, coord_t pos_max) {
+    for (int32_t y=pos_min.y; y<=pos_max.y; y++) {
+        for (int32_t x=pos_min.x; x<=pos_max.x; x++) {
+            if (get_building(gs, (coord_t) { x, y }))
+                return false;
+        }
+    }
+    return true;
+}
+
 size_t spawn_miner(game_state_t *gs, coord_t pos) {
+    if (!space_is_free(gs, pos, (coord_t) { pos.x+1, pos.y })) {
+        printf("no free space for miner at %d,%d\n", pos.x, pos.y);
+        return 0;
+    }
 
     size_t building_id = gs->building_count++;
     size_t miner_id = gs->miner_count++;
@@ -38,6 +58,11 @@ size_t spawn_miner(game_state_t *gs, coord_t pos) {
 }
 
 size_t spawn_factory(game_state_t *gs, coord_t pos) {
+    if (!space_is_free(gs, pos, (coord_t) { pos.x+1, pos.y+1 })) {
+        printf("no free space for factory at %d,%d\n", pos.x, pos.y);
+        return 0;
+    }
+
     size_t building_id = gs->building_count++;
     size_t factory_id = gs->factory_count++;
 
@@ -53,6 +78,11 @@ size_t spawn_factory(game_state_t *gs, coord_t pos) {
 }
 
 size_t spawn_belt(game_state_t *gs, coord_t pos) {
+    if (!space_is_free(gs, pos, (coord_t) { pos.x, pos.y })) {
+        printf("no free space for belt at %d,%d\n", pos.x, pos.y);
+        return 0;
+    }
+
     size_t building_id = gs->building_count++;
     size_t belt_id = gs->belt_count++;
 
@@ -68,19 +98,59 @@ size_t spawn_belt(game_state_t *gs, coord_t pos) {
 }
 
 static uint8_t get_direction(coord_t from, coord_t to) {
-
     int dx = to.x - from.x;
     int dy = to.y - from.y;
-
     if (dx == 0 && dy != 0) {
         return dy > 0 ? DIR_DOWN : DIR_UP;
     }
-
     if (dy == 0 && dx != 0) {
         return dx > 0 ? DIR_RIGHT : DIR_LEFT;
     }
-
     return DIR_NONE;
+}
+
+static bool buildings_can_connect(game_state_t *gs, size_t source_id, size_t target_id, uint8_t *out_dir) {
+    assert(gs);
+    assert(source_id > 0);
+    assert(target_id > 0);
+    assert(source_id < gs->building_count);
+    assert(target_id < gs->building_count);
+    assert(source_id != target_id);
+
+    building_t *source = gs->buildings + source_id;
+    building_t *target = gs->buildings + target_id;
+
+    // check left/right edge of source.
+    for (int32_t y=source->pos.y; y<source->pos.y+source->size.h; y++) {
+        int32_t x_left = source->pos.x - 1;
+        int32_t x_right = source->pos.x + source->size.w;
+
+        if (coord_is_in_building(target, (coord_t) { x_left, y })) {
+            if (out_dir) *out_dir = DIR_LEFT;
+            return true;
+        }
+        if (coord_is_in_building(target, (coord_t) { x_right, y })) {
+            if (out_dir) *out_dir = DIR_RIGHT;
+            return true;
+        }
+    }
+
+    // check top/bottom edge of source.
+    for (int32_t x=source->pos.x; x<source->pos.x+source->size.w; x++) {
+        int32_t y_up = source->pos.y - 1;
+        int32_t y_down = source->pos.y + source->size.h;
+
+        if (coord_is_in_building(target, (coord_t) { x, y_down })) {
+            if (out_dir) *out_dir = DIR_DOWN;
+            return true;
+        }
+        if (coord_is_in_building(target, (coord_t) { x, y_up })) {
+            if (out_dir) *out_dir = DIR_UP;
+            return true;
+        }
+    }
+    
+    return false;
 }
 
 void connect_buildings(game_state_t *gs, size_t source_id, size_t target_id) {
@@ -90,6 +160,12 @@ void connect_buildings(game_state_t *gs, size_t source_id, size_t target_id) {
     assert(source_id < gs->building_count);
     assert(target_id < gs->building_count);
     assert(source_id != target_id);
+
+    uint8_t conn_dir = 0;
+    if (!buildings_can_connect(gs, source_id, target_id, &conn_dir)) {
+        printf("can't connect buildings %lu %lu\n", source_id, target_id);
+        return;
+    }
 
     building_t *source = gs->buildings + source_id;
     building_t *target = gs->buildings + target_id;
@@ -105,15 +181,13 @@ void connect_buildings(game_state_t *gs, size_t source_id, size_t target_id) {
         case BUILDING_TYPE_BELT:    (gs->belts +     source->data_index)->output = output; break;
     }
 
-    uint8_t d = get_direction(source->pos, target->pos);
-
     if (source->type == BUILDING_TYPE_BELT) {
         belt_t *source_belt = gs->belts + source->data_index;
-        source_belt->out_dir = d;
+        source_belt->out_dir = conn_dir;
     }
     if (target->type == BUILDING_TYPE_BELT) {
         belt_t *target_belt = gs->belts + target->data_index;
-        target_belt->in_dir = d;
+        target_belt->in_dir = conn_dir;
     }
 }
 

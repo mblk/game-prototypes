@@ -13,8 +13,6 @@
 #define DIR_LEFT     (4)
 #define DIR_RIGHT    (5)
 
-
-
 #define MAX_ENTITY_COUNT          (1000)
 
 #define BUILDING_TYPE_MINER       (0)
@@ -48,7 +46,6 @@ typedef struct {
 typedef struct {
     coord_t pos;
     building_size_t size;
-    uint8_t dir;
     uint32_t type;
     uint32_t data_index;
 } building_t;
@@ -56,7 +53,6 @@ typedef struct {
 typedef struct {
     uint8_t type;
     uint32_t index;
-    //uint32_t building_id;
 } item_output_t;
 
 typedef struct {
@@ -78,10 +74,8 @@ typedef struct {
     uint8_t items[BELT_ITEM_COUNT];
     uint8_t works[BELT_ITEM_COUNT];
     item_output_t output;
-
     uint8_t in_dir;
     uint8_t out_dir;
-
 } belt_t;
 
 typedef struct {
@@ -99,6 +93,8 @@ typedef struct {
 int coord_equals(coord_t c1, coord_t c2);
 
 size_t get_building(game_state_t *gs, coord_t pos);
+bool space_is_free(game_state_t *gs, coord_t pos_min, coord_t pos_max);
+
 size_t spawn_miner(game_state_t *gs, coord_t pos);
 size_t spawn_factory(game_state_t *gs, coord_t pos);
 size_t spawn_belt(game_state_t *gs, coord_t pos);

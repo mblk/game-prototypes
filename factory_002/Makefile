@@ -5,8 +5,10 @@ CC=gcc
 LD=gcc
 
 RAYLIB_DIR=$(HOME)/workspace/repos/github/raylib/src/
+RAYGUI_DIR=$(HOME)/workspace/repos/github/raygui/src/
 
 CFLAGS=-I$(RAYLIB_DIR) \
+	   -I$(RAYGUI_DIR) \
 	   -g -O0 \
 	   -std=c99 \
 	   -Wall -Wshadow \

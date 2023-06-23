@@ -10,6 +10,8 @@
 coord_t world_position_to_coord(Vector2 world_position) {
     int32_t x = world_position.x / WORLD_CELL_SIZE;
     int32_t y = world_position.y / WORLD_CELL_SIZE;
+    if (world_position.x < 0) x--;
+    if (world_position.y < 0) y--;
     return (coord_t) { x, y };
 }
 
@@ -111,14 +113,12 @@ void render_belt(render_state_t *rs, const belt_t *belt, Rectangle r) {
     // 0..1
 
     const float item_w = (float)WORLD_CELL_SIZE / (float)BELT_ITEM_COUNT;
-    const float item_h = item_w;
     const float lane_size = item_w * 1.5f;
 
     Rectangle in_rect = {};
     Rectangle out_rect = {};
 
     switch (belt->in_dir) {
-        default:
         case DIR_RIGHT:
             in_rect = (Rectangle) {
                 .x = r.x,
@@ -157,7 +157,6 @@ void render_belt(render_state_t *rs, const belt_t *belt, Rectangle r) {
     }
 
     switch (belt->out_dir) {
-        default:
         case DIR_RIGHT:
             out_rect = (Rectangle) {
                 .x = r.x + r.width * 0.5f,
@@ -198,7 +197,7 @@ void render_belt(render_state_t *rs, const belt_t *belt, Rectangle r) {
     DrawRectangleRec(in_rect, GRAY);
     DrawRectangleRec(out_rect, GRAY);
 
-    if (belt->in_dir != belt->out_dir) {
+    if (belt->in_dir != belt->out_dir || belt->in_dir == DIR_NONE || belt->out_dir == DIR_NONE) {
         Vector2 joint_pos = (Vector2) {
             .x = r.x + r.width * 0.5f,
             .y = r.y + r.height * 0.5f,
@@ -207,11 +206,14 @@ void render_belt(render_state_t *rs, const belt_t *belt, Rectangle r) {
         DrawCircleV(joint_pos, joint_radius, GRAY);
     }
 
-    //DrawRectangle(r.x, r.y, anim_progress * WORLD_CELL_SIZE, WORLD_CELL_SIZE / 16.0f, WHITE);
+    // Debug
+    //DrawText(TextFormat("%u/%u", belt->in_dir, belt->out_dir), r.x, r.y, 10, WHITE);
+}
 
-    //for(int item=0; item<BELT_ITEM_COUNT; item++) {
-    //    DrawText(TextFormat("%u %u", belt->items[item], belt->works[item]), r.x+10, r.y+30 + item*10, 10, BLACK);
-    //}
+void render_belt_items(render_state_t *rs, const belt_t *belt, Rectangle r) {
+
+    const float item_w = (float)WORLD_CELL_SIZE / (float)BELT_ITEM_COUNT;
+    const float item_h = item_w;
 
     for (size_t item=0; item<BELT_ITEM_COUNT; item++) {
         float off_factor = (float)belt->works[item] / (float)BELT_WORK_PER_ITEM;
@@ -219,7 +221,6 @@ void render_belt(render_state_t *rs, const belt_t *belt, Rectangle r) {
         uint8_t relevant_dir = (item < BELT_ITEM_COUNT/2) ? belt->in_dir : belt->out_dir;
 
         switch (relevant_dir) {
-            default:
             case DIR_RIGHT:
                 item_x = r.x + (float)item*item_w + off_factor*item_w;
                 item_y = r.y + WORLD_CELL_SIZE*0.5f;
@@ -239,6 +240,11 @@ void render_belt(render_state_t *rs, const belt_t *belt, Rectangle r) {
                 item_x = r.x + WORLD_CELL_SIZE*0.5f;
                 item_y = r.y + WORLD_CELL_SIZE - (float)item*item_h - off_factor*item_h;
                 break;
+
+            default:
+                item_x = r.x + WORLD_CELL_SIZE*0.5f + (item%(BELT_ITEM_COUNT/2))*10.0f + off_factor*10.0f ;
+                item_y = r.y + WORLD_CELL_SIZE*0.5f + (item%(BELT_ITEM_COUNT/2))*10.0f + off_factor*10.0f ;
+                break;
         }
 
         const Rectangle item_rect = {
@@ -252,23 +258,18 @@ void render_belt(render_state_t *rs, const belt_t *belt, Rectangle r) {
             DrawRectangleRec(item_rect, get_item_color(belt->items[item]));
         }
     }
+
 }
 
-void render_world(const game_state_t *gs, render_state_t *rs)
-{
+void render_world(const game_state_t *gs, render_state_t *rs) {
     assert(gs);
     assert(rs);
 
     rs->ticks++;
 
-    //const Vector2 cell_size = (Vector2) { WORLD_CELL_SIZE, WORLD_CELL_SIZE };
-    //const Vector2 half_cell_size = Vector2Scale(cell_size, 0.5f);
-
     for(uint32_t i=1; i<gs->building_count; i++) {
-
         const building_t *b = gs->buildings + i;
-        Vector2 world_pos = coord_to_world_position(b->pos);
-
+        const Vector2 world_pos = coord_to_world_position(b->pos);
         const Rectangle r = {
             .x = world_pos.x,
             .y = world_pos.y,
@@ -276,15 +277,27 @@ void render_world(const game_state_t *gs, render_state_t *rs)
             .height = b->size.h * WORLD_CELL_SIZE,
         };
 
-        //DrawRectangleRec(rect, GRAY);
-        //DrawRectangleLinesEx(rect, 2.0f, BLACK);
-        //DrawText(TextFormat("%u/%u", b->type, b->data_index), x+10, y+10, 10, BLACK);
-
         switch (b->type) {
             case BUILDING_TYPE_MINER: render_miner(rs, gs->miners + b->data_index, r); break;
             case BUILDING_TYPE_FACTORY: render_factory(rs, gs->factories + b->data_index, r); break;
             case BUILDING_TYPE_BELT: render_belt(rs, gs->belts + b->data_index, r); break;
         }
     }
+
+    for(uint32_t i=1; i<gs->building_count; i++) {
+        const building_t *b = gs->buildings + i;
+        const Vector2 world_pos = coord_to_world_position(b->pos);
+        const Rectangle r = {
+            .x = world_pos.x,
+            .y = world_pos.y,
+            .width = b->size.w * WORLD_CELL_SIZE,
+            .height = b->size.h * WORLD_CELL_SIZE,
+        };
+
+        switch (b->type) {
+            case BUILDING_TYPE_BELT: render_belt_items(rs, gs->belts + b->data_index, r); break;
+        }
+    }
+
 }
 
