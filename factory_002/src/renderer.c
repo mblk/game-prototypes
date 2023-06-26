@@ -194,6 +194,21 @@ void render_belt(render_state_t *rs, const belt_t *belt, Rectangle r) {
             break;
     }
 
+    Rectangle in_rect_border = in_rect;
+    in_rect_border.x -= 2;
+    in_rect_border.y -= 2;
+    in_rect_border.width += 4;
+    in_rect_border.height += 4;
+
+    Rectangle out_rect_border = out_rect;
+    out_rect_border.x -= 2;
+    out_rect_border.y -= 2;
+    out_rect_border.width += 4;
+    out_rect_border.height += 4;
+
+    DrawRectangleRec(in_rect_border, BLACK); // super ugly&hackish border
+    DrawRectangleRec(out_rect_border, BLACK);
+
     DrawRectangleRec(in_rect, GRAY);
     DrawRectangleRec(out_rect, GRAY);
 

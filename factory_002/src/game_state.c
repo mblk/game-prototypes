@@ -191,6 +191,19 @@ void connect_buildings(game_state_t *gs, size_t source_id, size_t target_id) {
     }
 }
 
+void delete_building(game_state_t *gs, size_t building_id) {
+    assert(gs);
+    assert(building_id > 0);
+    assert(building_id < gs->building_count);
+
+    building_t *building = gs->buildings + building_id;
+
+    // Mark for deletion
+    building->flags |= BUILDING_FLAGS_DELETE;
+
+    printf("marked for deletion: %lu\n", building_id);
+}
+
 void reset_game_state(game_state_t *gs) {
     assert(gs);
     memset(gs, 0, sizeof(game_state_t));
@@ -334,12 +347,53 @@ void update_belt(game_state_t *gs, belt_t *belt) {
     }
 }
 
+void update_game_state(const game_state_t *old, game_state_t *new) {
 
-void update_game_state(game_state_t *gs) {
+    reset_game_state(new);
 
-    for (size_t i=1; i<gs->miner_count; i++) update_miner(gs, gs->miners + i);
-    for (size_t i=1; i<gs->factory_count; i++) update_factory(gs, gs->factories + i);
-    for (size_t i=1; i<gs->belt_count; i++) update_belt(gs, gs->belts + i);
+    for (size_t i=1; i<old->building_count; i++) {
+
+        const building_t *old_building = old->buildings + i;
+
+        if (old_building->flags & BUILDING_FLAGS_DELETE)
+            continue;
+
+        building_t *new_building = new->buildings + new->building_count++;
+        memcpy(new_building, old_building, sizeof(building_t));
+
+        // TODO random access to miners/belts/factory :/
+        //      figure out a better solution... maybe use a "mapping-array" for changing data_indices?
+
+        switch (old_building->type) {
+            case BUILDING_TYPE_MINER:
+                {
+                    const miner_t *old_miner = old->miners + old_building->data_index;
+                    miner_t *new_miner = new->miners + new->miner_count++;
+                    memcpy(new_miner, old_miner, sizeof(miner_t));
+                }
+                break;
+
+            case BUILDING_TYPE_BELT:
+                {
+                    const belt_t *old_belt = old->belts + old_building->data_index;
+                    belt_t *new_belt = new->belts + new->belt_count++;
+                    memcpy(new_belt, old_belt, sizeof(belt_t));
+                }
+                break;
+
+            case BUILDING_TYPE_FACTORY:
+                {
+                    const factory_t *old_factory = old->factories + old_building->data_index;
+                    factory_t *new_factory = new->factories + new->factory_count++;
+                    memcpy(new_factory, old_factory, sizeof(factory_t));
+                }
+                break;
+        }
+    }
+
+    for (size_t i=1; i<new->miner_count; i++) update_miner(new, new->miners + i);
+    for (size_t i=1; i<new->factory_count; i++) update_factory(new, new->factories + i);
+    for (size_t i=1; i<new->belt_count; i++) update_belt(new, new->belts + i);
     
 }
 

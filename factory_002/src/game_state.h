@@ -19,6 +19,8 @@
 #define BUILDING_TYPE_FACTORY     (1)
 #define BUILDING_TYPE_BELT        (2)
 
+#define BUILDING_FLAGS_DELETE     (1)
+
 #define MINER_STATE_MINING        (0)
 #define MINER_STATE_UNLOAD        (1)
 
@@ -46,13 +48,14 @@ typedef struct {
 typedef struct {
     coord_t pos;
     building_size_t size;
-    uint32_t type;
-    uint32_t data_index;
+    uint32_t type; // miner/belt/factory
+    uint32_t data_index; // index into miner/belt/factory-arrays
+    uint32_t flags;
 } building_t;
 
 typedef struct {
-    uint8_t type;
-    uint32_t index;
+    uint8_t type; // miner/belt/factory
+    uint32_t index; // index into miner/belt/factory-arrays
 } item_output_t;
 
 typedef struct {
@@ -98,8 +101,10 @@ bool space_is_free(game_state_t *gs, coord_t pos_min, coord_t pos_max);
 size_t spawn_miner(game_state_t *gs, coord_t pos);
 size_t spawn_factory(game_state_t *gs, coord_t pos);
 size_t spawn_belt(game_state_t *gs, coord_t pos);
+
 void connect_buildings(game_state_t *gs, size_t source_id, size_t target_id); 
+void delete_building(game_state_t *gs, size_t building_id);
 
 void reset_game_state(game_state_t *gs);
-void update_game_state(game_state_t *gs);
+void update_game_state(const game_state_t *old, game_state_t *new);
 
