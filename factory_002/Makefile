@@ -7,13 +7,22 @@ LD=gcc
 RAYLIB_DIR=$(HOME)/workspace/repos/github/raylib/src/
 RAYGUI_DIR=$(HOME)/workspace/repos/github/raygui/src/
 
-CFLAGS=-I$(RAYLIB_DIR) \
-	   -I$(RAYGUI_DIR) \
-	   -g -O0 \
-	   -std=c99 \
-	   -Wall -Wshadow \
-	   -fsanitize=address \
-	   -fsanitize=undefined
+CFLAGS_COMMON=-isystem $(RAYLIB_DIR) \
+			  -isystem $(RAYGUI_DIR) \
+	   		  -std=gnu99 \
+			  -Wall \
+			  -Wshadow
+
+CFLAGS_DEBUG=$(CFLAGS_COMMON) \
+	         -g -O0 \
+	         -fsanitize=address \
+	         -fsanitize=undefined
+
+CFLAGS_RELEASE=$(CFLAGS_COMMON) \
+			   -O2
+
+#CFLAGS=$(CFLAGS_DEBUG)
+CFLAGS=$(CFLAGS_RELEASE)
 
 LIBS=-L$(RAYLIB_DIR) \
 	 -lasan \
@@ -34,6 +43,7 @@ build:
 	$(CC) -c $(CFLAGS) src/main.c       -o obj/main.o
 	$(CC) -c $(CFLAGS) src/game_state.c -o obj/game_state.o
 	$(CC) -c $(CFLAGS) src/renderer.c   -o obj/renderer.o
+	$(CC) -c $(CFLAGS) src/raygui.c     -o obj/raygui.o
 	$(LD) obj/*.o $(LIBS) -o $(BIN)
 
 run:

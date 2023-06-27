@@ -1,7 +1,7 @@
 clang
 -I/home/marcel/workspace/repos/github/raylib/src/
 -I/home/marcel/workspace/repos/github/raygui/src/
--std=c99
+-std=gnu99
 -Wall
 -Wshadow
 

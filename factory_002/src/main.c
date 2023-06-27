@@ -5,23 +5,23 @@
 #include <raymath.h>
 #include <rlgl.h>
 
-#define RAYGUI_IMPLEMENTATION
 #include <raygui.h>
 
+#include "utils.h"
 #include "game_state.h"
 #include "renderer.h"
 
 static bool rectangle_contains(Rectangle r, Vector2 p) {
-    return r.x <= p.x && p.x <= r.x + r.width && r.y <= p.y &&
-        p.y <= r.y + r.height;
+    return r.x <= p.x && p.x <= r.x + r.width &&
+        r.y <= p.y && p.y <= r.y + r.height;
 }
 
-static void build_some_stuff(game_state_t *gs) {
-    size_t miner1a = spawn_miner(gs, (coord_t){1, 1});
-    size_t belt1a = spawn_belt(gs, (coord_t){3, 1});
-    size_t belt2a = spawn_belt(gs, (coord_t){4, 1});
-    size_t factory1a = spawn_factory(gs, (coord_t){5, 1});
-    size_t belt3a = spawn_belt(gs, (coord_t){7, 1});
+static void build_some_stuff(game_state_t *gs, int32_t x, int32_t y) {
+    size_t miner1a = spawn_miner(gs, (coord_t){x+1, y+1});
+    size_t belt1a = spawn_belt(gs, (coord_t){x+3, y+1});
+    size_t belt2a = spawn_belt(gs, (coord_t){x+4, y+1});
+    size_t factory1a = spawn_factory(gs, (coord_t){x+5, y+1});
+    size_t belt3a = spawn_belt(gs, (coord_t){x+7, y+1});
 
     connect_buildings(gs, miner1a, belt1a);
     connect_buildings(gs, belt1a, belt2a);
@@ -29,14 +29,14 @@ static void build_some_stuff(game_state_t *gs) {
     connect_buildings(gs, factory1a, belt3a);
 
     // Note: same as above but in reverse
-    size_t belt3b = spawn_belt(gs, (coord_t){7, 4});
-    size_t factory1b = spawn_factory(gs, (coord_t){5, 4});
-    size_t belt2b = spawn_belt(gs, (coord_t){4, 4});
-    size_t belt1b = spawn_belt(gs, (coord_t){3, 4});
-    size_t miner1b = spawn_miner(gs, (coord_t){1, 4});
+    size_t belt3b = spawn_belt(gs, (coord_t){x+7, y+4});
+    size_t factory1b = spawn_factory(gs, (coord_t){x+5, y+4});
+    size_t belt2b = spawn_belt(gs, (coord_t){x+4, y+4});
+    size_t belt1b = spawn_belt(gs, (coord_t){x+3, y+4});
+    size_t miner1b = spawn_miner(gs, (coord_t){x+1, y+4});
 
-    size_t belt4b = spawn_belt(gs, (coord_t){8, 4});
-    size_t belt5b = spawn_belt(gs, (coord_t){8, 3});
+    size_t belt4b = spawn_belt(gs, (coord_t){x+8, y+4});
+    size_t belt5b = spawn_belt(gs, (coord_t){x+8, y+3});
 
     connect_buildings(gs, miner1b, belt1b);
     connect_buildings(gs, belt1b, belt2b);
@@ -45,8 +45,8 @@ static void build_some_stuff(game_state_t *gs) {
     connect_buildings(gs, belt3b, belt4b);
     connect_buildings(gs, belt4b, belt5b);
 
-    size_t factory2 = spawn_factory(gs, (coord_t){8, 1});
-    size_t belt10 = spawn_belt(gs, (coord_t){10, 2});
+    size_t factory2 = spawn_factory(gs, (coord_t){x+8, y+1});
+    size_t belt10 = spawn_belt(gs, (coord_t){x+10, y+2});
 
     connect_buildings(gs, belt3a, factory2);
     connect_buildings(gs, belt5b, factory2);
@@ -81,12 +81,12 @@ int main(void) {
     camera.zoom = 1.0f;
 
     // "game-state double-buffer"
-    game_state_t game_state_1 = {};
-    reset_game_state(&game_state_1);
-    game_state_t game_state_2 = {};
-    reset_game_state(&game_state_2);
-    game_state_t *active_gs = &game_state_1;
-    game_state_t *next_gs = &game_state_2;
+    game_state_t *game_state_1 = malloc(sizeof(game_state_t));
+    reset_game_state(game_state_1);
+    game_state_t *game_state_2 = malloc(sizeof(game_state_t));
+    reset_game_state(game_state_2);
+    game_state_t *active_gs = game_state_1;
+    game_state_t *next_gs = game_state_2;
 
     render_state_t render_state = {};
 
@@ -96,7 +96,7 @@ int main(void) {
     bool game_update_enabled = true;
     bool game_update_once = false;
 
-    int screen_width = GetScreenWidth();
+    //int screen_width = GetScreenWidth();
     int screen_height = GetScreenHeight();
     int ui_height = 300;
     int ui_width = 150;
@@ -109,15 +109,25 @@ int main(void) {
     };
 
     // -----------------
-    build_some_stuff(active_gs);
-    build_some_more_stuff(active_gs);
+    for (int32_t xi=0; xi<712; xi++) {
+        for (int32_t yi=0; yi<100; yi++) {
+            int32_t x = xi * 12;
+            int32_t y = yi * 8;
+            build_some_stuff(active_gs, x, y);
+        }
+    }
+    //build_some_more_stuff(active_gs);
+    printf("entities: %lu | %lu %lu %lu\n", active_gs->building_count, active_gs->miner_count,
+            active_gs->belt_count, active_gs->factory_count);
+    printf("game state: %lu MiB\n", sizeof(game_state_t)/1024/1024);
     // -----------------
 
     while (!WindowShouldClose()) {
 
         if (game_update_enabled || game_update_once) {
             game_update_once = false;
-            update_game_state(active_gs, next_gs);
+            
+            CHECK_TIME(update_game_state(active_gs, next_gs));
 
             game_state_t *temp = active_gs;
             active_gs = next_gs;
@@ -179,6 +189,7 @@ int main(void) {
         if (IsKeyPressed(KEY_DELETE)) {
             if (selected_building) {
                 delete_building(active_gs, selected_building);
+                selected_building = 0;
             }
         }
 
@@ -271,10 +282,13 @@ int main(void) {
                         next_text_y += 20, 20, WHITE);
             }
         }
-        EndDrawing();
-        }
-
-        CloseWindow();
-
-        return 0;
+    EndDrawing();
     }
+
+    free(game_state_1);
+    free(game_state_2);
+
+    CloseWindow();
+
+    return 0;
+}

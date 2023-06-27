@@ -13,13 +13,13 @@
 #define DIR_LEFT     (4)
 #define DIR_RIGHT    (5)
 
-#define MAX_ENTITY_COUNT          (1000)
+#define MAX_ENTITY_COUNT          (1000 * 1000)
 
 #define BUILDING_TYPE_MINER       (0)
 #define BUILDING_TYPE_FACTORY     (1)
 #define BUILDING_TYPE_BELT        (2)
 
-#define BUILDING_FLAGS_DELETE     (1)
+#define ENTITY_FLAGS_DELETE     (1)
 
 #define MINER_STATE_MINING        (0)
 #define MINER_STATE_UNLOAD        (1)
@@ -46,11 +46,13 @@ typedef struct {
 } building_size_t;
 
 typedef struct {
+    uint32_t flags;
+    // ---
     coord_t pos;
     building_size_t size;
+    // ---
     uint32_t type; // miner/belt/factory
     uint32_t data_index; // index into miner/belt/factory-arrays
-    uint32_t flags;
 } building_t;
 
 typedef struct {
@@ -59,6 +61,8 @@ typedef struct {
 } item_output_t;
 
 typedef struct {
+    uint32_t flags;
+    // ---
     uint32_t work;
     uint8_t state;
     uint8_t next_item;
@@ -66,6 +70,8 @@ typedef struct {
 } miner_t;
 
 typedef struct {
+    uint32_t flags;
+    // ---
     uint32_t work;
     uint32_t recipe;
     uint8_t state;
@@ -74,6 +80,8 @@ typedef struct {
 } factory_t;
 
 typedef struct {
+    uint32_t flags;
+    // ---
     uint8_t items[BELT_ITEM_COUNT];
     uint8_t works[BELT_ITEM_COUNT];
     item_output_t output;

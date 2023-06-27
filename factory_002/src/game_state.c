@@ -6,6 +6,7 @@
 #include <rlgl.h>
 #include <raymath.h>
 
+#include "utils.h"
 #include "game_state.h"
 
 int coord_equals(coord_t c1, coord_t c2) {
@@ -28,6 +29,11 @@ size_t get_building(game_state_t *gs, coord_t pos) {
 }
 
 bool space_is_free(game_state_t *gs, coord_t pos_min, coord_t pos_max) {
+   
+    //xxx
+    return true;
+    //xxx
+
     for (int32_t y=pos_min.y; y<=pos_max.y; y++) {
         for (int32_t x=pos_min.x; x<=pos_max.x; x++) {
             if (get_building(gs, (coord_t) { x, y }))
@@ -38,6 +44,10 @@ bool space_is_free(game_state_t *gs, coord_t pos_min, coord_t pos_max) {
 }
 
 size_t spawn_miner(game_state_t *gs, coord_t pos) {
+
+    assert(gs->building_count < MAX_ENTITY_COUNT); 
+    assert(gs->miner_count < MAX_ENTITY_COUNT);
+
     if (!space_is_free(gs, pos, (coord_t) { pos.x+1, pos.y })) {
         printf("no free space for miner at %d,%d\n", pos.x, pos.y);
         return 0;
@@ -58,6 +68,10 @@ size_t spawn_miner(game_state_t *gs, coord_t pos) {
 }
 
 size_t spawn_factory(game_state_t *gs, coord_t pos) {
+
+    assert(gs->building_count < MAX_ENTITY_COUNT);
+    assert(gs->factory_count < MAX_ENTITY_COUNT);
+
     if (!space_is_free(gs, pos, (coord_t) { pos.x+1, pos.y+1 })) {
         printf("no free space for factory at %d,%d\n", pos.x, pos.y);
         return 0;
@@ -78,6 +92,10 @@ size_t spawn_factory(game_state_t *gs, coord_t pos) {
 }
 
 size_t spawn_belt(game_state_t *gs, coord_t pos) {
+
+    assert(gs->building_count < MAX_ENTITY_COUNT);  
+    assert(gs->belt_count < MAX_ENTITY_COUNT);
+
     if (!space_is_free(gs, pos, (coord_t) { pos.x, pos.y })) {
         printf("no free space for belt at %d,%d\n", pos.x, pos.y);
         return 0;
@@ -95,18 +113,6 @@ size_t spawn_belt(game_state_t *gs, coord_t pos) {
     building->data_index = belt_id;
 
     return building_id;
-}
-
-static uint8_t get_direction(coord_t from, coord_t to) {
-    int dx = to.x - from.x;
-    int dy = to.y - from.y;
-    if (dx == 0 && dy != 0) {
-        return dy > 0 ? DIR_DOWN : DIR_UP;
-    }
-    if (dy == 0 && dx != 0) {
-        return dx > 0 ? DIR_RIGHT : DIR_LEFT;
-    }
-    return DIR_NONE;
 }
 
 static bool buildings_can_connect(game_state_t *gs, size_t source_id, size_t target_id, uint8_t *out_dir) {
@@ -199,14 +205,20 @@ void delete_building(game_state_t *gs, size_t building_id) {
     building_t *building = gs->buildings + building_id;
 
     // Mark for deletion
-    building->flags |= BUILDING_FLAGS_DELETE;
+    building->flags |= ENTITY_FLAGS_DELETE;
+
+    switch (building->type) {
+    case BUILDING_TYPE_MINER: (gs->miners + building->data_index)->flags |= ENTITY_FLAGS_DELETE; break;
+    case BUILDING_TYPE_BELT: (gs->belts + building->data_index)->flags |= ENTITY_FLAGS_DELETE; break;
+    case BUILDING_TYPE_FACTORY: (gs->factories + building->data_index)->flags |= ENTITY_FLAGS_DELETE; break;
+    }
 
     printf("marked for deletion: %lu\n", building_id);
 }
 
 void reset_game_state(game_state_t *gs) {
     assert(gs);
-    memset(gs, 0, sizeof(game_state_t));
+    //memset(gs, 0, sizeof(game_state_t)); // ~3ms -> ~30GB/s
 
     // Never use the 0-index. This way, output_belt=0 can be used to express a missing connection.
     gs->building_count = 1;
@@ -347,53 +359,124 @@ void update_belt(game_state_t *gs, belt_t *belt) {
     }
 }
 
-void update_game_state(const game_state_t *old, game_state_t *new) {
+static void update_output_reference(item_output_t *output, size_t *miner_mappings,
+        size_t *belt_mappings, size_t *factory_mappings) {
+    assert(output);
+    assert(miner_mappings);
+    assert(belt_mappings);
+    assert(factory_mappings);
 
-    reset_game_state(new);
+    if (!output->type && !output->index) return;
 
-    for (size_t i=1; i<old->building_count; i++) {
-
-        const building_t *old_building = old->buildings + i;
-
-        if (old_building->flags & BUILDING_FLAGS_DELETE)
-            continue;
-
-        building_t *new_building = new->buildings + new->building_count++;
-        memcpy(new_building, old_building, sizeof(building_t));
-
-        // TODO random access to miners/belts/factory :/
-        //      figure out a better solution... maybe use a "mapping-array" for changing data_indices?
-
-        switch (old_building->type) {
-            case BUILDING_TYPE_MINER:
-                {
-                    const miner_t *old_miner = old->miners + old_building->data_index;
-                    miner_t *new_miner = new->miners + new->miner_count++;
-                    memcpy(new_miner, old_miner, sizeof(miner_t));
-                }
-                break;
-
-            case BUILDING_TYPE_BELT:
-                {
-                    const belt_t *old_belt = old->belts + old_building->data_index;
-                    belt_t *new_belt = new->belts + new->belt_count++;
-                    memcpy(new_belt, old_belt, sizeof(belt_t));
-                }
-                break;
-
-            case BUILDING_TYPE_FACTORY:
-                {
-                    const factory_t *old_factory = old->factories + old_building->data_index;
-                    factory_t *new_factory = new->factories + new->factory_count++;
-                    memcpy(new_factory, old_factory, sizeof(factory_t));
-                }
-                break;
-        }
+    size_t *mapping = NULL;
+    switch (output->type) {
+        case BUILDING_TYPE_MINER: mapping = miner_mappings; break;
+        case BUILDING_TYPE_BELT: mapping = belt_mappings; break;
+        case BUILDING_TYPE_FACTORY: mapping = factory_mappings; break;
     }
+    if (!mapping) return;
+
+    output->index = mapping[output->index];
+}
+
+static size_t miner_mapping[MAX_ENTITY_COUNT];
+static size_t belt_mapping[MAX_ENTITY_COUNT];
+static size_t factory_mapping[MAX_ENTITY_COUNT];
+
+void update_game_state_1(const game_state_t *old, game_state_t *new) {
+
+    //
+    // Step 1: copy belts/miners/factories to new arrays
+    //
+
+    // TODO: bulk copy if nothing was deleted?
+    // TODO: track bounds of modified region?
+
+    for (size_t old_id=1; old_id<old->building_count; old_id++) {
+        const building_t *old_building = old->buildings + old_id;
+        if (old_building->flags & ENTITY_FLAGS_DELETE) {
+            continue;
+        }
+        const size_t new_id = new->building_count++;
+        building_t *new_building = new->buildings + new_id;
+        memcpy(new_building, old_building, sizeof(building_t));
+    }
+    for (size_t old_id=1; old_id<old->miner_count; old_id++) {
+        const miner_t *old_miner = old->miners + old_id;
+        if(old_miner->flags & ENTITY_FLAGS_DELETE) {
+            miner_mapping[old_id] = 0;
+            continue;
+        }
+        const size_t new_id = new->miner_count++;
+        miner_mapping[old_id] = new_id;
+        miner_t *new_miner = new->miners + new_id;
+        memcpy(new_miner, old_miner, sizeof(miner_t));
+    }
+    for (size_t old_id=1; old_id<old->belt_count; old_id++) {
+        const belt_t *old_belt = old->belts + old_id;
+        if(old_belt->flags & ENTITY_FLAGS_DELETE) {
+            belt_mapping[old_id] = 0;
+            continue;
+        }
+        const size_t new_id = new->belt_count++;
+        belt_mapping[old_id] = new_id;
+        belt_t *new_belt = new->belts + new_id;
+        memcpy(new_belt, old_belt, sizeof(belt_t));
+    }
+    for (size_t old_id=1; old_id<old->factory_count; old_id++) {
+        const factory_t *old_factory = old->factories + old_id;
+        if(old_factory->flags & ENTITY_FLAGS_DELETE) {
+            factory_mapping[old_id] = 0;
+            continue;
+        }
+        const size_t new_id = new->factory_count++;
+        factory_mapping[old_id] = new_id;
+        factory_t *new_factory = new->factories + new_id;
+        memcpy(new_factory, old_factory, sizeof(factory_t));
+    }
+}
+
+void update_game_state_2(const game_state_t *old, game_state_t *new) {
+
+    //
+    // Step 2: fix references
+    //
+
+    for (size_t i=1; i<new->building_count; i++) {
+        building_t *building = new->buildings + i;
+        switch (building->type) {
+            case BUILDING_TYPE_MINER: building->data_index = miner_mapping[building->data_index]; break;
+            case BUILDING_TYPE_BELT: building->data_index = belt_mapping[building->data_index]; break;
+            case BUILDING_TYPE_FACTORY: building->data_index = factory_mapping[building->data_index]; break;
+        }
+        assert(building->data_index);
+    }
+    for (size_t i=1; i<new->miner_count; i++) {
+        miner_t *miner = new->miners + i;
+        update_output_reference(&miner->output, miner_mapping, belt_mapping, factory_mapping);
+    }
+    for (size_t i=1; i<new->belt_count; i++) {
+        belt_t *belt = new->belts + i;
+        update_output_reference(&belt->output, miner_mapping, belt_mapping, factory_mapping);
+    }
+    //for (size_t i=1; i<new->factory_count; i++) {
+    // no outputs
+    //}
+
+}
+
+void update_game_state_3(const game_state_t *old, game_state_t *new) {
 
     for (size_t i=1; i<new->miner_count; i++) update_miner(new, new->miners + i);
     for (size_t i=1; i<new->factory_count; i++) update_factory(new, new->factories + i);
     for (size_t i=1; i<new->belt_count; i++) update_belt(new, new->belts + i);
-    
+}
+
+void update_game_state(const game_state_t *old, game_state_t *new) {
+
+    CHECK_TIME(reset_game_state(new));
+    CHECK_TIME(update_game_state_1(old, new));
+    CHECK_TIME(update_game_state_2(old, new));
+    CHECK_TIME(update_game_state_3(old, new));
 }
 

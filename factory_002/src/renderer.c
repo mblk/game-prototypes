@@ -297,6 +297,8 @@ void render_world(const game_state_t *gs, render_state_t *rs) {
             case BUILDING_TYPE_FACTORY: render_factory(rs, gs->factories + b->data_index, r); break;
             case BUILDING_TYPE_BELT: render_belt(rs, gs->belts + b->data_index, r); break;
         }
+
+        if (i > 100) break;
     }
 
     for(uint32_t i=1; i<gs->building_count; i++) {
@@ -312,6 +314,8 @@ void render_world(const game_state_t *gs, render_state_t *rs) {
         switch (b->type) {
             case BUILDING_TYPE_BELT: render_belt_items(rs, gs->belts + b->data_index, r); break;
         }
+
+        if (i > 100) break;
     }
 
 }
