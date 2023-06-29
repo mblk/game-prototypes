@@ -5,7 +5,8 @@
 
 #include <raylib.h>
 
-#define ARRAY_LENGTH(array) (sizeof((array))/sizeof((array)[0]))
+#include "coord.h"
+#include "quad_tree.h"
 
 #define DIR_NONE     (0)
 #define DIR_UP       (1)
@@ -19,7 +20,7 @@
 #define BUILDING_TYPE_FACTORY     (1)
 #define BUILDING_TYPE_BELT        (2)
 
-#define ENTITY_FLAGS_DELETE     (1)
+#define ENTITY_FLAGS_DELETED      (1)
 
 #define MINER_STATE_MINING        (0)
 #define MINER_STATE_UNLOAD        (1)
@@ -34,11 +35,6 @@
 
 #define BELT_ITEM_COUNT           (4)
 #define BELT_WORK_PER_ITEM        (10)
-
-typedef struct {
-    int32_t x;
-    int32_t y;
-} coord_t;
 
 typedef struct {
     uint8_t w;
@@ -99,9 +95,13 @@ typedef struct {
     size_t miner_count;
     size_t factory_count;
     size_t belt_count;
+
+    quad_tree_t *quad_tree;
+
 } game_state_t;
 
-int coord_equals(coord_t c1, coord_t c2);
+game_state_t *create_game_state();
+void destroy_game_state(game_state_t *gs);
 
 size_t get_building(game_state_t *gs, coord_t pos);
 bool space_is_free(game_state_t *gs, coord_t pos_min, coord_t pos_max);

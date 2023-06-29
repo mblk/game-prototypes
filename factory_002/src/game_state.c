@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
 #include <string.h>
 
@@ -9,8 +10,33 @@
 #include "utils.h"
 #include "game_state.h"
 
-int coord_equals(coord_t c1, coord_t c2) {
-    return c1.x == c2.x && c1.y == c2.y;
+game_state_t *create_game_state() {
+    game_state_t *state = malloc(sizeof(game_state_t));
+    memset(state, 0, sizeof(game_state_t));
+
+    state->quad_tree = quad_tree_create();
+
+    reset_game_state(state);
+
+    return state;
+}
+
+void destroy_game_state(game_state_t *gs) {
+    assert(gs);
+    quad_tree_destroy(gs->quad_tree);
+    free(gs);
+}
+
+void reset_game_state(game_state_t *gs) {
+    assert(gs);
+
+    // Never use the 0-index. This way, output_belt=0 can be used to express a missing connection.
+    gs->building_count = 1;
+    gs->miner_count = 1;
+    gs->factory_count = 1;
+    gs->belt_count = 1;
+
+    quad_tree_reset(gs->quad_tree);
 }
 
 bool coord_is_in_building(const building_t *b, coord_t pos) {
@@ -205,26 +231,13 @@ void delete_building(game_state_t *gs, size_t building_id) {
     building_t *building = gs->buildings + building_id;
 
     // Mark for deletion
-    building->flags |= ENTITY_FLAGS_DELETE;
+    building->flags |= ENTITY_FLAGS_DELETED;
 
     switch (building->type) {
-    case BUILDING_TYPE_MINER: (gs->miners + building->data_index)->flags |= ENTITY_FLAGS_DELETE; break;
-    case BUILDING_TYPE_BELT: (gs->belts + building->data_index)->flags |= ENTITY_FLAGS_DELETE; break;
-    case BUILDING_TYPE_FACTORY: (gs->factories + building->data_index)->flags |= ENTITY_FLAGS_DELETE; break;
+    case BUILDING_TYPE_MINER: (gs->miners + building->data_index)->flags |= ENTITY_FLAGS_DELETED; break;
+    case BUILDING_TYPE_BELT: (gs->belts + building->data_index)->flags |= ENTITY_FLAGS_DELETED; break;
+    case BUILDING_TYPE_FACTORY: (gs->factories + building->data_index)->flags |= ENTITY_FLAGS_DELETED; break;
     }
-
-    printf("marked for deletion: %lu\n", building_id);
-}
-
-void reset_game_state(game_state_t *gs) {
-    assert(gs);
-    //memset(gs, 0, sizeof(game_state_t)); // ~3ms -> ~30GB/s
-
-    // Never use the 0-index. This way, output_belt=0 can be used to express a missing connection.
-    gs->building_count = 1;
-    gs->miner_count = 1;
-    gs->factory_count = 1;
-    gs->belt_count = 1;
 }
 
 const bool try_put_item(game_state_t *gs, item_output_t output, uint8_t item) {
@@ -384,17 +397,14 @@ static size_t belt_mapping[MAX_ENTITY_COUNT];
 static size_t factory_mapping[MAX_ENTITY_COUNT];
 
 void update_game_state_1(const game_state_t *old, game_state_t *new) {
-
-    //
     // Step 1: copy belts/miners/factories to new arrays
-    //
 
     // TODO: bulk copy if nothing was deleted?
     // TODO: track bounds of modified region?
 
     for (size_t old_id=1; old_id<old->building_count; old_id++) {
         const building_t *old_building = old->buildings + old_id;
-        if (old_building->flags & ENTITY_FLAGS_DELETE) {
+        if (old_building->flags & ENTITY_FLAGS_DELETED) {
             continue;
         }
         const size_t new_id = new->building_count++;
@@ -403,7 +413,7 @@ void update_game_state_1(const game_state_t *old, game_state_t *new) {
     }
     for (size_t old_id=1; old_id<old->miner_count; old_id++) {
         const miner_t *old_miner = old->miners + old_id;
-        if(old_miner->flags & ENTITY_FLAGS_DELETE) {
+        if(old_miner->flags & ENTITY_FLAGS_DELETED) {
             miner_mapping[old_id] = 0;
             continue;
         }
@@ -414,7 +424,7 @@ void update_game_state_1(const game_state_t *old, game_state_t *new) {
     }
     for (size_t old_id=1; old_id<old->belt_count; old_id++) {
         const belt_t *old_belt = old->belts + old_id;
-        if(old_belt->flags & ENTITY_FLAGS_DELETE) {
+        if(old_belt->flags & ENTITY_FLAGS_DELETED) {
             belt_mapping[old_id] = 0;
             continue;
         }
@@ -425,7 +435,7 @@ void update_game_state_1(const game_state_t *old, game_state_t *new) {
     }
     for (size_t old_id=1; old_id<old->factory_count; old_id++) {
         const factory_t *old_factory = old->factories + old_id;
-        if(old_factory->flags & ENTITY_FLAGS_DELETE) {
+        if(old_factory->flags & ENTITY_FLAGS_DELETED) {
             factory_mapping[old_id] = 0;
             continue;
         }
@@ -437,10 +447,7 @@ void update_game_state_1(const game_state_t *old, game_state_t *new) {
 }
 
 void update_game_state_2(const game_state_t *old, game_state_t *new) {
-
-    //
     // Step 2: fix references
-    //
 
     for (size_t i=1; i<new->building_count; i++) {
         building_t *building = new->buildings + i;
@@ -459,24 +466,26 @@ void update_game_state_2(const game_state_t *old, game_state_t *new) {
         belt_t *belt = new->belts + i;
         update_output_reference(&belt->output, miner_mapping, belt_mapping, factory_mapping);
     }
-    //for (size_t i=1; i<new->factory_count; i++) {
-    // no outputs
-    //}
-
 }
 
 void update_game_state_3(const game_state_t *old, game_state_t *new) {
-
     for (size_t i=1; i<new->miner_count; i++) update_miner(new, new->miners + i);
     for (size_t i=1; i<new->factory_count; i++) update_factory(new, new->factories + i);
     for (size_t i=1; i<new->belt_count; i++) update_belt(new, new->belts + i);
 }
 
-void update_game_state(const game_state_t *old, game_state_t *new) {
+void update_game_state_4(const game_state_t *old, game_state_t *new) {
+    for (size_t i=1; i<new->building_count; i++) {
+        const building_t *building = new->buildings + i;
+        quad_tree_insert(new->quad_tree, building->pos, i);
+    }
+}
 
+void update_game_state(const game_state_t *old, game_state_t *new) {
     CHECK_TIME(reset_game_state(new));
     CHECK_TIME(update_game_state_1(old, new));
     CHECK_TIME(update_game_state_2(old, new));
     CHECK_TIME(update_game_state_3(old, new));
+    CHECK_TIME(update_game_state_4(old, new));
 }
 

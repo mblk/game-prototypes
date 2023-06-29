@@ -54,20 +54,27 @@ static void build_some_stuff(game_state_t *gs, int32_t x, int32_t y) {
 }
 
 static void build_some_more_stuff(game_state_t *gs) {
-    size_t miner1 = spawn_miner(gs, (coord_t){1, 7});
-    size_t belt1 = spawn_belt(gs, (coord_t){3, 7});
-    size_t belt2 = spawn_belt(gs, (coord_t){3, 8});
-    size_t belt3 = spawn_belt(gs, (coord_t){4, 8});
-    size_t belt4 = spawn_belt(gs, (coord_t){4, 7});
-    size_t belt5 = spawn_belt(gs, (coord_t){4, 6});
-    size_t belt6 = spawn_belt(gs, (coord_t){3, 6});
 
-    connect_buildings(gs, miner1, belt1);
-    connect_buildings(gs, belt1, belt2);
-    connect_buildings(gs, belt2, belt3);
-    connect_buildings(gs, belt3, belt4);
-    connect_buildings(gs, belt4, belt5);
-    connect_buildings(gs, belt5, belt6);
+    for (int32_t x=0; x<8; x++) {
+        for (int32_t y=0; y<8; y++) {
+            spawn_belt(gs, (coord_t){x,y});
+        }
+    }
+
+    //size_t miner1 = spawn_miner(gs, (coord_t){1, 7});
+    //size_t belt1 = spawn_belt(gs, (coord_t){3, 7});
+    //size_t belt2 = spawn_belt(gs, (coord_t){3, 8});
+    //size_t belt3 = spawn_belt(gs, (coord_t){4, 8});
+    //size_t belt4 = spawn_belt(gs, (coord_t){4, 7});
+    //size_t belt5 = spawn_belt(gs, (coord_t){4, 6});
+    //size_t belt6 = spawn_belt(gs, (coord_t){3, 6});
+
+    //connect_buildings(gs, miner1, belt1);
+    //connect_buildings(gs, belt1, belt2);
+    //connect_buildings(gs, belt2, belt3);
+    //connect_buildings(gs, belt3, belt4);
+    //connect_buildings(gs, belt4, belt5);
+    //connect_buildings(gs, belt5, belt6);
 }
 
 int main(void) {
@@ -79,12 +86,11 @@ int main(void) {
     camera.offset = (Vector2){0.0f, 0.0f};
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
+    int32_t zoom_level = 0;
 
     // "game-state double-buffer"
-    game_state_t *game_state_1 = malloc(sizeof(game_state_t));
-    reset_game_state(game_state_1);
-    game_state_t *game_state_2 = malloc(sizeof(game_state_t));
-    reset_game_state(game_state_2);
+    game_state_t *game_state_1 = create_game_state();
+    game_state_t *game_state_2 = create_game_state();
     game_state_t *active_gs = game_state_1;
     game_state_t *next_gs = game_state_2;
 
@@ -95,8 +101,9 @@ int main(void) {
 
     bool game_update_enabled = true;
     bool game_update_once = false;
+    bool render_quad_tree = false;
 
-    //int screen_width = GetScreenWidth();
+    int screen_width = GetScreenWidth();
     int screen_height = GetScreenHeight();
     int ui_height = 300;
     int ui_width = 150;
@@ -109,14 +116,16 @@ int main(void) {
     };
 
     // -----------------
+#if 1
     for (int32_t xi=0; xi<712; xi++) {
-        for (int32_t yi=0; yi<100; yi++) {
-            int32_t x = xi * 12;
+        for (int32_t yi=0; yi<10 /*100*/; yi++) {
+            int32_t x = xi * 12 + 10;
             int32_t y = yi * 8;
             build_some_stuff(active_gs, x, y);
         }
     }
-    //build_some_more_stuff(active_gs);
+#endif
+    build_some_more_stuff(active_gs);
     printf("entities: %lu | %lu %lu %lu\n", active_gs->building_count, active_gs->miner_count,
             active_gs->belt_count, active_gs->factory_count);
     printf("game state: %lu MiB\n", sizeof(game_state_t)/1024/1024);
@@ -152,9 +161,9 @@ int main(void) {
                 Vector2 mouseWorldPos = GetScreenToWorld2D(GetMousePosition(), camera);
                 camera.offset = GetMousePosition();
                 camera.target = mouseWorldPos;
-                camera.zoom += wheel * 0.15f;
-                if (camera.zoom < 0.1f)
-                    camera.zoom = 0.1f;
+
+                zoom_level += (wheel > 0) ? (1) : (-1);
+                camera.zoom = powf(1.2f, zoom_level);
             }
 
             // Building
@@ -195,6 +204,38 @@ int main(void) {
 
         if (IsKeyPressed(KEY_U)) game_update_enabled = !game_update_enabled;
         if (IsKeyPressed(KEY_T)) game_update_once = true;
+        if (IsKeyPressed(KEY_Q)) render_quad_tree = !render_quad_tree;
+
+        // -----
+        Vector2 visible_world_min = GetScreenToWorld2D((Vector2){ 0, 0 }, camera);
+        Vector2 visible_world_max = GetScreenToWorld2D((Vector2){ screen_width, screen_height }, camera);
+        coord_t visible_coord_min = world_position_to_coord(visible_world_min);
+        coord_t visible_coord_max = world_position_to_coord(visible_world_max);
+
+        const quad_aabb_t qb = {
+            .x_min = visible_coord_min.x - 2,
+            .y_min = visible_coord_min.y - 2,
+            .x_max = visible_coord_max.x + 2,
+            .y_max = visible_coord_max.y + 2,
+            /*.x_min = mouse_coord.x - 5,
+            .y_min = mouse_coord.y - 5,
+            .x_max = mouse_coord.x + 5,
+            .y_max = mouse_coord.y + 5,*/
+        };
+
+        size_t qt_qr_items[1000 * 10];
+        quad_tree_query_result_t qt_qr = {
+            .capacity = ARRAY_LENGTH(qt_qr_items),
+            .count = 0,
+            .items = qt_qr_items,
+        };
+        quad_tree_query(active_gs->quad_tree, qb, &qt_qr);
+
+        //printf("query result: %lu\n", qt_qr.count);
+        //for (size_t i=0; i<qt_qr.count; i++) {
+        //    printf("> %lu\n", qt_qr.items[i]);
+        //}
+        // -----
 
         BeginDrawing();
         {
@@ -210,8 +251,13 @@ int main(void) {
                 DrawLine(-WORLD_CELL_SIZE, -1000, -WORLD_CELL_SIZE, 1000, BLACK);
                 DrawLine(WORLD_CELL_SIZE, -1000, WORLD_CELL_SIZE, 1000, BLACK);
 
+                if (render_quad_tree) {
+                    //quad_tree_dump(active_gs->quad_tree);
+                    quad_tree_render(active_gs->quad_tree);
+                }
+
                 // World
-                render_world(active_gs, &render_state);
+                render_world(active_gs, &render_state, qt_qr.count, qt_qr.items);
 
                 // Mouse
                 if (!mouse_is_over_ui) {
@@ -222,7 +268,7 @@ int main(void) {
                         .width = WORLD_CELL_SIZE,
                         .height = WORLD_CELL_SIZE,
                     };
-                    DrawRectangleLinesEx(mouse_rect_aligned, 1.0f, PINK);
+                    DrawRectangleRec(mouse_rect_aligned, Fade(PINK, 0.33f));
                 }
 
                 // Selection
@@ -277,6 +323,12 @@ int main(void) {
 
             int next_text_y = 0;
             DrawFPS(10, next_text_y += 20);
+            DrawText(TextFormat("total buildings: %lu (%lu, %lu, %lu)", active_gs->building_count,
+                        active_gs->miner_count, active_gs->belt_count, active_gs->factory_count), 
+                    10, next_text_y+=20, 20, WHITE);
+            DrawText(TextFormat("rendered: %lu", qt_qr.count), 10, next_text_y+=20, 20, WHITE);
+            DrawText(TextFormat("zoom %d %.2f", zoom_level, camera.zoom), 10, next_text_y+=20, 20, WHITE);
+
             if (selected_building != 0) {
                 DrawText(TextFormat("sel: %u", selected_building), 10,
                         next_text_y += 20, 20, WHITE);
@@ -285,8 +337,8 @@ int main(void) {
     EndDrawing();
     }
 
-    free(game_state_1);
-    free(game_state_2);
+    destroy_game_state(game_state_1);
+    destroy_game_state(game_state_2);
 
     CloseWindow();
 

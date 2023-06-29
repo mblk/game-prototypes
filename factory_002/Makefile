@@ -11,7 +11,10 @@ CFLAGS_COMMON=-isystem $(RAYLIB_DIR) \
 			  -isystem $(RAYGUI_DIR) \
 	   		  -std=gnu99 \
 			  -Wall \
-			  -Wshadow
+			  -Wshadow \
+			  -Werror \
+			  -Wno-error=unused-variable \
+			  -Wno-error=unused-function
 
 CFLAGS_DEBUG=$(CFLAGS_COMMON) \
 	         -g -O0 \
@@ -41,6 +44,8 @@ clean:
 
 build:
 	$(CC) -c $(CFLAGS) src/main.c       -o obj/main.o
+	$(CC) -c $(CFLAGS) src/coord.c      -o obj/coord.o
+	$(CC) -c $(CFLAGS) src/quad_tree.c  -o obj/quad_tree.o
 	$(CC) -c $(CFLAGS) src/game_state.c -o obj/game_state.o
 	$(CC) -c $(CFLAGS) src/renderer.c   -o obj/renderer.o
 	$(CC) -c $(CFLAGS) src/raygui.c     -o obj/raygui.o

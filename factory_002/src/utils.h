@@ -12,4 +12,5 @@
     printf("time '" #x "': %f ms\n", f/1000000); \
 }
 
+#define ARRAY_LENGTH(array) (sizeof((array))/sizeof((array)[0]))
 
